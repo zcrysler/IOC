@@ -67,8 +67,7 @@ df.redKnot <- filter(tbl.alltags, speciesEN == "Red Knot") %>%
 
 # you can also summarize data prior to converting it to a flat file using dplyr()
 # for example to determine the number of detections of each tag at each receiver:
-df.detectSum <- tbl.alltags %>% group_by(motusTagID, 
-                                         recv) %>% tally() %>% collect() %>% as.data.frame()
+df.detectSum <- tbl.alltags %>% group_by(motusTagID, recv) %>% tally() %>% collect() %>% as.data.frame()
   
   
   
