@@ -152,7 +152,8 @@ df.alltags.sub <- left_join(df.alltags, df.block.all,
                               probability)) %>% filter(probability > 0)
 
 # you can now save this as an RDS for future use
-saveRDS(df.alltags.sub, file = "./dfAlltagsSub.rds")
+#saveRDS(df.alltags.sub, file = "./dfAlltagsSub.rds")
+
 
 
 # Alternatively, you can save filters directly within your .motus file
@@ -160,7 +161,31 @@ saveRDS(df.alltags.sub, file = "./dfAlltagsSub.rds")
 tbl.filter = writeRunsFilter(sql.motus, "filtAmbigFalsePos", 
                              df = df.block.all, delete = TRUE)
 
+# obtain a table object of the filter
+tbl.filter = getRunsFilters(sql.motus, "filtAmbigFalsePos")
 
+# filter and convert the table into a dataframe, with a few modications
+df.alltags.sub <- left_join(tbl.alltags, tbl.filter, by = c("runID", "motusTagID")) %>%
+  mutate(probability = ifelse(is.na(probability), 1, probability),
+         recvLat = if_else((is.na(gpsLat)|gpsLat == 0), 
+                           recvDeployLat, 
+                           gpsLat),
+         recvLon = if_else((is.na(gpsLon)|gpsLon == 0), 
+                           recvDeployLon, 
+                           gpsLon),
+         recvAlt = if_else(is.na(gpsAlt), 
+                           recvDeployAlt, 
+                           gpsAlt)) %>%
+  filter(probability > 0) %>%
+  select(-noise, -slop, -burstSlop, -done, -bootnum, -codeSet, 
+         -mfg, -nomFreq,-markerNumber, -markerType, -tagDeployComments, 
+         -fullID, -deviceID,-recvDeployLat, -recvDeployLon, -recvDeployAlt, 
+         -speciesGroup, -gpsLat,-gpsLon, - recvAlt, - recvSiteName) %>%
+  collect() %>%
+  as.data.frame() %>%
+  mutate(ts = as_datetime(ts),  # work with dates AFTER transforming to flat file
+         tagDeployStart = as_datetime(tagDeployStart),
+         tagDeployEnd = as_datetime(tagDeployEnd))
 
 
 
