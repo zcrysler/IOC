@@ -20,7 +20,7 @@ tagSummary <- df.alltags.sub %>% group_by(motusTagID) %>%
 
 head(tagSummary)
 
-# or you can plot by multiple groups
+# or you can summarize by multiple groups
 # same as above by grouping by motusTagID AND recvDeployName
 tagRecvSummary <- df.alltags.sub %>% group_by(motusTagID, recvDeployName) %>% 
   summarize(nDet = n(), 
@@ -38,7 +38,7 @@ df.alltags.sub.2 <- mutate(df.alltags.sub, hour = as.POSIXct(round(ts, "hour")))
   select(motusTagID, port, tagDeployStart, tagDeployLat, tagDeployLon, recvLat, 
          recvLon, recvDeployName, antBearing, speciesEN, year, doy, hour) %>% distinct()
 
-# now we can plot hourly detections of 2016 tasg, coloured by species
+# now we can plot hourly detections of 2016 tags, coloured by species
 p <- ggplot(data = filter(df.alltags.sub.2, year(tagDeployStart) == 2016), 
             aes(hour, as.factor(motusTagID), col = speciesEN))
 p + geom_point() + ylab("MotusTagID") + xlab("Time (rounded to hour)") + 
@@ -47,7 +47,7 @@ p + geom_point() + ylab("MotusTagID") + xlab("Time (rounded to hour)") +
 # or we can see how tags move latitudinally
 df.alltags.sub.2 <- arrange(df.alltags.sub.2, hour)
 
-p <- ggplot(data = filter(df.alltags.sub.2, year(tagDeployStart) == 2016), 
+p <- ggplot(data = filter(df.alltags.sub.2, hour < as.POSIXct("2016-01-01")), 
             aes(hour, recvLat, col = as.factor(motusTagID), group = as.factor(motusTagID)))
 p + geom_point() + geom_path() + theme_bw() + xlab("Time (rounded to hour)") + 
   ylab("Receiver latitude") + scale_colour_discrete(name = "MotusTagID")
@@ -99,8 +99,59 @@ ymax <- max(df.tmp$recvLat, na.rm = TRUE) + 1
 
 # now let's get our database, and only look at specified tags:
 # just use the tags that we have examined carefully and filtered (in the previous chapter)
-df.tmp <- filter(df.alltags.sub, 
+df.tmp <- filter(df.alltags.sub.2, 
                  motusTagID %in% c(16011, 16035, 16036, 16037, 16038, 16039))
-df.tmp <- arrange(df.tmp, ts.h) # arange by hour
+df.tmp <- arrange(df.tmp, hour) # arange by hour
 df.tmp <- as.data.frame(df.tmp)
+
+ggplot(na.lakes, aes(long, lat)) + 
+  geom_polygon(data = na.map, aes(long, lat, group = group), colour = "grey", fill = "grey98") + 
+  geom_polygon(aes(group = group), colour = "grey", fill = "white") + 
+  coord_map(projection = "mercator", xlim = c(xmin, xmax), ylim = c(ymin, ymax)) + xlab("") + 
+  ylab("") + theme_bw() +
+  geom_path(data = df.tmp, aes(recvLon, recvLat, group = as.factor(motusTagID),
+                               colour = as.factor(motusTagID))) + 
+  geom_point(data = df.tmp, aes(tagDeployLon, tagDeployLat), colour = "black", 
+             shape = 4) + scale_colour_discrete("motusTagID")
+
+
+# Add in receiver points that were active during specified time frame
+tbl.recvDeps <- tbl(sql.motus, "recvDeps")
+df.recvDeps <- tbl.recvDeps %>% collect %>% as.data.frame() %>% 
+  mutate(tsStart = as_datetime(tsStart, tz = "UTC", 
+                               origin = "1970-01-01"), tsEnd = as_datetime(tsEnd, 
+                                                                           tz = "UTC", origin = "1970-01-01"))
+# for deployments with no end dates, make an end
+# date a year from now
+df.recvDeps$tsEnd <- as.POSIXct(ifelse(is.na(df.recvDeps$tsEnd), 
+                                       as.POSIXct(format(Sys.time(), "%Y-%m-%d %H:%M:%S")) + 
+                                         lubridate::dyears(1), df.recvDeps$tsEnd), tz = "UTC", 
+                                origin = "1970-01-01")
+# get running intervals for all receiver
+# deployments
+siteOp <- with(df.recvDeps, lubridate::interval(tsStart, 
+                                                tsEnd))  # get running intervals for each deployment
+# set the date range you're interested in
+dateRange <- lubridate::interval(as.POSIXct("2015-08-01"), 
+                                 as.POSIXct("2016-01-01"))
+# create new variable 'active' which will be set to
+# TRUE if the receiver was active at some point
+# during your specified date range, and FALSE if
+# not
+df.recvDeps$active <- lubridate::int_overlaps(siteOp, 
+                                              dateRange)
+
+ggplot(na.lakes, aes(long, lat)) + 
+  geom_polygon(data = na.map, aes(long, lat, group = group), colour = "grey", fill = "grey98") + 
+  geom_polygon(aes(group = group), colour = "grey", fill = "white") + 
+  coord_map(projection = "mercator", xlim = c(xmin, xmax), ylim = c(ymin, ymax)) + xlab("") + 
+  ylab("") + theme_bw() +
+  geom_path(data = df.tmp, aes(recvLon, recvLat, group = as.factor(motusTagID),
+                               colour = as.factor(motusTagID))) + 
+  geom_point(data = df.tmp, aes(tagDeployLon, tagDeployLat), colour = "black", 
+             shape = 4) + scale_colour_discrete("motusTagID") +
+  geom_point(data = subset(df.recvDeps, active == TRUE), aes(longitude, latitude), pch = 21, 
+             colour = "black", fill = "red") + 
+  geom_point(data = df.tmp, aes(recvLon, recvLat), pch = 21, colour = "black", fill = "yellow")
+
 

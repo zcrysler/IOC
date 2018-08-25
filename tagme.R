@@ -8,12 +8,7 @@ install_github("MotusWTS/motus")
 # install motusClient for data download
 install_github("MotusWTS/motusClient")
 
-# install motusData package which contains sample
-# datasets, e.g., vanishBearing used in Chapter 7
-install_github("MotusWTS/motusData")
-
 library(motus)
-library(motusData)
 
 # set the system environment to GMT
 Sys.setenv(TZ = "GMT")
@@ -28,18 +23,7 @@ sql.motus <- tagme(projRecv = proj.num, new = TRUE,
 # OR you can specify a different location to save
 # the data by entering your preferred filepath
 sql.motus <- tagme(projRecv = proj.num, new = TRUE, 
-                   update = TRUE, dir = "C:/Users/guest/Documents/data/")
-
-# To see the list of tables available within the sql.motus database;
-# specify the filepath where your .motus file is
-# saved, and the file name.
-file.name <- dbConnect(SQLite(), "./project-176.motus")
-
-# get a list of tables in the .motus file specified above.
-dbListTables(file.name)
-
-# get a list of variables in the 'species' table in the .motus file.
-dbListFields(file.name, "species")
+                   update = TRUE, dir = "C:/Users/zcrysler/Documents/data/")
 
 # For our purposes we're most interested in the "alltags" view
 # the following code retrieves the "alltags" view from the sql.motus file we created 
@@ -58,7 +42,7 @@ df.alltags <- mutate(df.alltags, ts = as_datetime(ts, tz = "UTC"))
 
 # select certain variables, in this case a unique list of Motus tag IDs at 
 # each receiver and antenna.
-df.alltagsSub <- select(tbl.alltags, recv, port, motusTagID) %>% 
+df.alltags.sub <- select(tbl.alltags, recv, port, motusTagID) %>% 
   distinct() %>% collect() %>% as.data.frame()
 
 # filter to only Red Knot (using English name)
@@ -67,9 +51,13 @@ df.redKnot <- filter(tbl.alltags, speciesEN == "Red Knot") %>%
 
 # you can also summarize data prior to converting it to a flat file using dplyr()
 # for example to determine the number of detections of each tag at each receiver:
-df.detectSum <- tbl.alltags %>% group_by(motusTagID, recv) %>% tally() %>% collect() %>% as.data.frame()
+df.detectSum <- tbl.alltags %>% 
+                group_by(motusTagID, recv) %>% 
+                tally() %>% 
+                collect() %>% 
+                as.data.frame()
   
-  
+
   
 ## additional features:
 # to determine if there is any new data available:
